@@ -1,0 +1,169 @@
+'use client';
+import { useEffect, useState } from 'react';
+import * as d3 from 'd3';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+const colorPalette = ['#d97777', '#77a6d9', '#d9b877', '#77d9a1', '#a877d9', '#d977b0', '#77c3d9', '#d99e77'];
+
+export default function ForceBubbleChart() {
+  const [rawData, setRawData] = useState([]);
+  const [nodes, setNodes] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [centers, setCenters] = useState({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedMember, setSelectedMember] = useState(null);
+  const [groupKey, setGroupKey] = useState('工作界別');
+
+  useEffect(() => {
+    async function fetchMembers() {
+      const { data, error } = await supabase.from('members').select('*');
+      if (error) {
+        console.error("讀取失敗:", error);
+        return;
+      }
+      if (data) {
+        setRawData(data);
+        setIsLoading(false);
+      }
+    }
+    fetchMembers();
+  }, []);
+
+  useEffect(() => {
+    if (rawData.length === 0) return;
+
+    const width = 1000;
+    const height = 600;
+
+    const uniqueCategories = Array.from(new Set(rawData.map(d => d[groupKey]))).filter(Boolean);
+    
+    const newCenters = {};
+    uniqueCategories.forEach((category, index) => {
+      newCenters[category] = { 
+        x: width * ((index + 1) / (uniqueCategories.length + 1)), 
+        y: height / 2 
+      };
+    });
+
+    setCategories(uniqueCategories);
+    setCenters(newCenters);
+
+    const nodeData = rawData.map(d => ({ ...d, radius: 35 }));
+
+    const simulation = d3.forceSimulation(nodeData)
+      .force('collide', d3.forceCollide().radius(d => d.radius + 3).iterations(3))
+      .force('x', d3.forceX().x(d => newCenters[d[groupKey]]?.x || width / 2).strength(0.1))
+      .force('y', d3.forceY().y(d => newCenters[d[groupKey]]?.y || height / 2).strength(0.1))
+      .on('tick', () => {
+        setNodes([...nodeData]);
+      });
+
+    return () => simulation.stop();
+  }, [rawData, groupKey]);
+
+  return (
+    <main className="min-h-screen bg-[#f7f5f0] flex flex-col items-center pt-8 relative">
+      <h1 className="text-3xl font-bold text-gray-800 mb-6">教會人物網絡</h1>
+      
+      <div className="mb-4 z-10 flex items-center gap-3 bg-white px-4 py-2 rounded-full shadow-sm border border-gray-200">
+        <span className="text-gray-600 font-medium">分類方式：</span>
+        <select 
+          value={groupKey}
+          onChange={(e) => {
+            setGroupKey(e.target.value);
+            setSelectedMember(null);
+          }}
+          className="bg-transparent text-gray-800 font-bold focus:outline-none cursor-pointer"
+        >
+          <option value="工作界別">工作界別</option>
+          <option value="團契">團契</option>
+          <option value="居住地區">居住地區</option>
+        </select>
+      </div>
+      
+      <div className="relative w-full max-w-5xl h-[600px] bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-white z-10 pointer-events-none">
+            <p className="text-gray-500 text-lg">正在載入會友資料...</p>
+          </div>
+        )}
+
+        {selectedMember && (
+          <div className="absolute top-6 right-6 w-80 bg-white/95 backdrop-blur-md p-6 rounded-xl shadow-2xl border border-gray-200 z-50 pointer-events-auto">
+            <button 
+              onClick={() => setSelectedMember(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-800 font-bold text-xl"
+            >
+              ✕
+            </button>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">{selectedMember['名稱'] || '無名氏'}</h2>
+            
+            <div className="space-y-3 text-sm text-gray-700">
+              <p>💼 <span className="font-semibold text-gray-500">工作界別：</span> {selectedMember['工作界別'] || '-'}</p>
+              <p>🙏 <span className="font-semibold text-gray-500">團契：</span> {selectedMember['團契'] || '-'}</p>
+              <p>⛪ <span className="font-semibold text-gray-500">返屯門堂年份：</span> {selectedMember['返屯門堂年份'] || '-'}</p>
+              <p>💧 <span className="font-semibold text-gray-500">受浸年份：</span> {selectedMember['受浸年份'] || '-'}</p>
+              <p>🏫 <span className="font-semibold text-gray-500">中學：</span> {selectedMember['中學'] || '-'}</p>
+              <p>🎓 <span className="font-semibold text-gray-500">大專 / 大學：</span> {selectedMember['大專 / 大學'] || '-'}</p>
+              <p>📍 <span className="font-semibold text-gray-500">居住地區：</span> {selectedMember['居住地區'] || '-'}</p>
+            </div>
+          </div>
+        )}
+
+        <svg width="100%" height="100%" className="z-0 relative">
+          <rect width="100%" height="100%" fill="transparent" onClick={() => setSelectedMember(null)} />
+          
+          {categories.map((category) => (
+            <text 
+              key={category} 
+              x={centers[category]?.x} 
+              y="60" 
+              textAnchor="middle" 
+              className="text-lg font-bold fill-gray-500 pointer-events-none"
+            >
+              {category}
+            </text>
+          ))}
+
+          {nodes.map((node, index) => {
+            const categoryIndex = categories.indexOf(node[groupKey]);
+            const bubbleColor = categoryIndex !== -1 ? colorPalette[categoryIndex % colorPalette.length] : '#ccc';
+            const isSelected = selectedMember?.['名稱'] === node['名稱'];
+
+            return (
+              <g key={node.id || `node-${index}`} transform={`translate(${node.x || 0}, ${node.y || 0})`}>
+                <circle
+                  r={node.radius}
+                  fill={bubbleColor}
+                  stroke={isSelected ? '#333' : '#fff'}
+                  strokeWidth={isSelected ? "4" : "2"}
+                  className="cursor-pointer hover:brightness-90 transition-all duration-200"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedMember(node);
+                  }}
+                />
+                <text
+                  textAnchor="middle"
+                  dy=".3em"
+                  fontSize="14px"
+                  fontWeight="500"
+                  fill="white"
+                  className="pointer-events-none"
+                >
+                  {node['名稱'] || '無名氏'}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    </main>
+  );
+}
+ 
