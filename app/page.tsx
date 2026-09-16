@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import * as d3 from 'd3';
 import { createClient } from '@supabase/supabase-js';
 
@@ -18,6 +18,9 @@ export default function ForceBubbleChart() {
   const [selectedMember, setSelectedMember] = useState<any>(null);
   const [groupKey, setGroupKey] = useState('工作界別');
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+
   useEffect(() => {
     async function fetchMembers() {
       const { data, error } = await supabase.from('members').select('*');
@@ -34,10 +37,25 @@ export default function ForceBubbleChart() {
   }, []);
 
   useEffect(() => {
-    if (rawData.length === 0) return;
+    const updateSize = () => {
+      if (containerRef.current) {
+        setDimensions({
+          width: containerRef.current.clientWidth,
+          height: containerRef.current.clientHeight || 600 
+        });
+      }
+    };
 
-    const width = 1000;
-    const height = 600;
+    window.addEventListener('resize', updateSize);
+    updateSize(); 
+
+    return () => window.removeEventListener('resize', updateSize);
+  }, []);
+
+  useEffect(() => {
+    if (rawData.length === 0 || dimensions.width === 0) return;
+
+    const { width, height } = dimensions;
 
     const uniqueCategories = Array.from(new Set(rawData.map((d: any) => d[groupKey]))).filter(Boolean) as string[];
     
@@ -52,7 +70,8 @@ export default function ForceBubbleChart() {
     setCategories(uniqueCategories);
     setCenters(newCenters);
 
-    const nodeData = rawData.map((d: any) => ({ ...d, radius: 35 }));
+    const radiusSize = width < 600 ? 25 : 35;
+    const nodeData = rawData.map((d: any) => ({ ...d, radius: radiusSize }));
 
     const simulation = d3.forceSimulation(nodeData)
       .force('collide', d3.forceCollide().radius((d: any) => d.radius + 3).iterations(3))
@@ -62,16 +81,16 @@ export default function ForceBubbleChart() {
         setNodes([...nodeData]);
       });
 
- return () => {
-  simulation.stop();
-};
-  }, [rawData, groupKey]);
+    return () => {
+      simulation.stop();
+    };
+  }, [rawData, groupKey, dimensions]);
 
   return (
-    <main className="min-h-screen bg-[#f7f5f0] flex flex-col items-center pt-8 relative">
-      <h1 className="text-3xl font-bold text-gray-800 mb-6">教會人物網絡</h1>
+    <main className="min-h-[100dvh] bg-[#f7f5f0] flex flex-col items-center pt-4 md:pt-8 relative overflow-hidden">
+      <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-4 md:mb-6">教會人物網絡</h1>
       
-      <div className="mb-4 z-10 flex items-center gap-3 bg-white px-4 py-2 rounded-full shadow-sm border border-gray-200">
+      <div className="mb-2 md:mb-4 z-10 flex items-center gap-2 md:gap-3 bg-white px-3 py-1.5 md:px-4 md:py-2 rounded-full shadow-sm border border-gray-200 text-sm md:text-base">
         <span className="text-gray-600 font-medium">分類方式：</span>
         <select 
           value={groupKey}
@@ -87,7 +106,10 @@ export default function ForceBubbleChart() {
         </select>
       </div>
       
-      <div className="relative w-full max-w-5xl h-[600px] bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+      <div 
+        ref={containerRef}
+        className="relative w-full max-w-5xl flex-1 md:h-[600px] bg-white md:rounded-2xl shadow-sm border-y md:border border-gray-200 overflow-hidden"
+      >
         
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-white z-10 pointer-events-none">
@@ -96,16 +118,17 @@ export default function ForceBubbleChart() {
         )}
 
         {selectedMember && (
-          <div className="absolute top-6 right-6 w-80 bg-white/95 backdrop-blur-md p-6 rounded-xl shadow-2xl border border-gray-200 z-50 pointer-events-auto">
+
+          <div className="absolute bottom-0 left-0 w-full md:top-6 md:right-6 md:bottom-auto md:w-80 bg-white/95 backdrop-blur-md p-5 md:p-6 rounded-t-2xl md:rounded-xl shadow-2xl border-t md:border border-gray-200 z-50 pointer-events-auto transition-transform">
             <button 
               onClick={() => setSelectedMember(null)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-800 font-bold text-xl"
             >
               ✕
             </button>
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">{selectedMember['名稱'] || '無名氏'}</h2>
+            <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-3 md:mb-4">{selectedMember['名稱'] || '無名氏'}</h2>
             
-            <div className="space-y-3 text-sm text-gray-700">
+            <div className="space-y-2 md:space-y-3 text-sm text-gray-700 max-h-[40vh] md:max-h-none overflow-y-auto pb-4 md:pb-0">
               <p>💼 <span className="font-semibold text-gray-500">工作界別：</span> {selectedMember['工作界別'] || '-'}</p>
               <p>🙏 <span className="font-semibold text-gray-500">團契：</span> {selectedMember['團契'] || '-'}</p>
               <p>⛪ <span className="font-semibold text-gray-500">返屯門堂年份：</span> {selectedMember['返屯門堂年份'] || '-'}</p>
@@ -124,9 +147,9 @@ export default function ForceBubbleChart() {
             <text 
               key={category} 
               x={centers[category]?.x} 
-              y="60" 
+              y="40" 
               textAnchor="middle" 
-              className="text-lg font-bold fill-gray-500 pointer-events-none"
+              className="text-xs md:text-lg font-bold fill-gray-500 pointer-events-none"
             >
               {category}
             </text>
@@ -153,7 +176,7 @@ export default function ForceBubbleChart() {
                 <text
                   textAnchor="middle"
                   dy=".3em"
-                  fontSize="14px"
+                  fontSize={width < 600 ? "11px" : "14px"}
                   fontWeight="500"
                   fill="white"
                   className="pointer-events-none"
