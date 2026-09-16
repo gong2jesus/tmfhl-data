@@ -19,7 +19,8 @@ export default function ForceBubbleChart() {
   const [groupKey, setGroupKey] = useState('工作界別');
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [dimensions, setDimensions] = useState({ width: 0, height: 600 });
+  const [svgHeight, setSvgHeight] = useState(600); // 🌟 新增：動態畫布高度
 
   useEffect(() => {
     async function fetchMembers() {
@@ -41,42 +42,59 @@ export default function ForceBubbleChart() {
       if (containerRef.current) {
         setDimensions({
           width: containerRef.current.clientWidth,
-          height: containerRef.current.clientHeight || 600 
+          height: containerRef.current.clientHeight || 600
         });
       }
     };
-
     window.addEventListener('resize', updateSize);
-    updateSize(); 
-
+    setTimeout(updateSize, 100); // 確保畫面載入後再計算
     return () => window.removeEventListener('resize', updateSize);
   }, []);
 
   useEffect(() => {
     if (rawData.length === 0 || dimensions.width === 0) return;
 
-    const { width, height } = dimensions;
+    const { width } = dimensions;
+    const isMobile = width < 768;
+   
 
+    const cols = isMobile ? 2 : 4; 
+    const rowHeight = isMobile ? 180 : 220; 
+    
     const uniqueCategories = Array.from(new Set(rawData.map((d: any) => d[groupKey]))).filter(Boolean) as string[];
     
     const newCenters: any = {};
     uniqueCategories.forEach((category: string, index: number) => {
+      const col = index % cols;
+      const row = Math.floor(index / cols);
       newCenters[category] = { 
-        x: width * ((index + 1) / (uniqueCategories.length + 1)), 
-        y: height / 2 
+        x: (col + 0.5) * (width / cols), 
+        y: (row + 0.5) * rowHeight + 40 
       };
     });
 
+    const totalRows = Math.ceil(uniqueCategories.length / cols);
+    const calculatedHeight = Math.max(isMobile ? 500 : 600, totalRows * rowHeight + 80);
+    
+    setSvgHeight(calculatedHeight);
     setCategories(uniqueCategories);
     setCenters(newCenters);
 
-    const radiusSize = width < 600 ? 25 : 35;
+    const radiusSize = isMobile ? 22 : 35; 
     const nodeData = rawData.map((d: any) => ({ ...d, radius: radiusSize }));
 
     const simulation = d3.forceSimulation(nodeData)
-      .force('collide', d3.forceCollide().radius((d: any) => d.radius + 3).iterations(3))
-      .force('x', d3.forceX().x((d: any) => newCenters[d[groupKey]]?.x || width / 2).strength(0.1))
-      .force('y', d3.forceY().y((d: any) => newCenters[d[groupKey]]?.y || height / 2).strength(0.1))
+      .force('collide', d3.forceCollide().radius((d: any) => d.radius + 2).iterations(3))
+      .force('x', d3.forceX().x((d: any) => newCenters[d[groupKey]]?.x || width / 2).strength(0.15))
+      .force('y', d3.forceY().y((d: any) => newCenters[d[groupKey]]?.y || calculatedHeight / 2).strength(0.15))
+      .force('bounds', () => {
+        nodeData.forEach(d => {
+          if (d.x < d.radius) d.x = d.radius;
+          if (d.x > width - d.radius) d.x = width - d.radius;
+          if (d.y < d.radius) d.y = d.radius;
+          if (d.y > calculatedHeight - d.radius) d.y = calculatedHeight - d.radius;
+        });
+      })
       .on('tick', () => {
         setNodes([...nodeData]);
       });
@@ -108,9 +126,8 @@ export default function ForceBubbleChart() {
       
       <div 
         ref={containerRef}
-        className="relative w-full max-w-5xl flex-1 md:h-[600px] bg-white md:rounded-2xl shadow-sm border-y md:border border-gray-200 overflow-hidden"
+        className="relative w-full max-w-5xl flex-1 bg-white md:rounded-2xl shadow-sm border-y md:border border-gray-200 overflow-y-auto overflow-x-hidden"
       >
-        
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-white z-10 pointer-events-none">
             <p className="text-gray-500 text-lg">正在載入會友資料...</p>
@@ -118,8 +135,7 @@ export default function ForceBubbleChart() {
         )}
 
         {selectedMember && (
-
-          <div className="absolute bottom-0 left-0 w-full md:top-6 md:right-6 md:bottom-auto md:w-80 bg-white/95 backdrop-blur-md p-5 md:p-6 rounded-t-2xl md:rounded-xl shadow-2xl border-t md:border border-gray-200 z-50 pointer-events-auto transition-transform">
+          <div className="fixed bottom-0 left-0 w-full md:absolute md:top-6 md:right-6 md:bottom-auto md:w-80 bg-white/95 backdrop-blur-md p-5 md:p-6 rounded-t-2xl md:rounded-xl shadow-[0_-10px_40px_rgba(0,0,0,0.1)] md:shadow-2xl border-t md:border border-gray-200 z-50 pointer-events-auto transition-transform">
             <button 
               onClick={() => setSelectedMember(null)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-800 font-bold text-xl"
@@ -140,16 +156,16 @@ export default function ForceBubbleChart() {
           </div>
         )}
 
-        <svg width="100%" height="100%" className="z-0 relative">
+        <svg width="100%" height={svgHeight} className="z-0 relative">
           <rect width="100%" height="100%" fill="transparent" onClick={() => setSelectedMember(null)} />
           
           {categories.map((category: string) => (
             <text 
               key={category} 
               x={centers[category]?.x} 
-              y="40" 
+              y={centers[category]?.y - (dimensions.width < 768 ? 55 : 65)} 
               textAnchor="middle" 
-              className="text-xs md:text-lg font-bold fill-gray-500 pointer-events-none"
+              className="text-[13px] md:text-lg font-bold fill-gray-500 pointer-events-none"
             >
               {category}
             </text>
@@ -176,7 +192,7 @@ export default function ForceBubbleChart() {
                 <text
                   textAnchor="middle"
                   dy=".3em"
-                  fontSize={dimensions.width < 600 ? "11px" : "14px"}
+                  fontSize={dimensions.width < 768 ? "11px" : "14px"}
                   fontWeight="500"
                   fill="white"
                   className="pointer-events-none"
