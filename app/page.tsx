@@ -3,19 +3,19 @@ import { useEffect, useState } from 'react';
 import * as d3 from 'd3';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const colorPalette = ['#d97777', '#77a6d9', '#d9b877', '#77d9a1', '#a877d9', '#d977b0', '#77c3d9', '#d99e77'];
 
 export default function ForceBubbleChart() {
-  const [rawData, setRawData] = useState([]);
-  const [nodes, setNodes] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [centers, setCenters] = useState({});
+  const [rawData, setRawData] = useState<any[]>([]);
+  const [nodes, setNodes] = useState<any[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [centers, setCenters] = useState<any>({});
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedMember, setSelectedMember] = useState(null);
+  const [selectedMember, setSelectedMember] = useState<any>(null);
   const [groupKey, setGroupKey] = useState('工作界別');
 
   useEffect(() => {
@@ -39,10 +39,10 @@ export default function ForceBubbleChart() {
     const width = 1000;
     const height = 600;
 
-    const uniqueCategories = Array.from(new Set(rawData.map(d => d[groupKey]))).filter(Boolean);
+    const uniqueCategories = Array.from(new Set(rawData.map((d: any) => d[groupKey]))).filter(Boolean) as string[];
     
-    const newCenters = {};
-    uniqueCategories.forEach((category, index) => {
+    const newCenters: any = {};
+    uniqueCategories.forEach((category: string, index: number) => {
       newCenters[category] = { 
         x: width * ((index + 1) / (uniqueCategories.length + 1)), 
         y: height / 2 
@@ -52,12 +52,12 @@ export default function ForceBubbleChart() {
     setCategories(uniqueCategories);
     setCenters(newCenters);
 
-    const nodeData = rawData.map(d => ({ ...d, radius: 35 }));
+    const nodeData = rawData.map((d: any) => ({ ...d, radius: 35 }));
 
     const simulation = d3.forceSimulation(nodeData)
-      .force('collide', d3.forceCollide().radius(d => d.radius + 3).iterations(3))
-      .force('x', d3.forceX().x(d => newCenters[d[groupKey]]?.x || width / 2).strength(0.1))
-      .force('y', d3.forceY().y(d => newCenters[d[groupKey]]?.y || height / 2).strength(0.1))
+      .force('collide', d3.forceCollide().radius((d: any) => d.radius + 3).iterations(3))
+      .force('x', d3.forceX().x((d: any) => newCenters[d[groupKey]]?.x || width / 2).strength(0.1))
+      .force('y', d3.forceY().y((d: any) => newCenters[d[groupKey]]?.y || height / 2).strength(0.1))
       .on('tick', () => {
         setNodes([...nodeData]);
       });
@@ -73,7 +73,7 @@ export default function ForceBubbleChart() {
         <span className="text-gray-600 font-medium">分類方式：</span>
         <select 
           value={groupKey}
-          onChange={(e) => {
+          onChange={(e: any) => {
             setGroupKey(e.target.value);
             setSelectedMember(null);
           }}
@@ -118,7 +118,7 @@ export default function ForceBubbleChart() {
         <svg width="100%" height="100%" className="z-0 relative">
           <rect width="100%" height="100%" fill="transparent" onClick={() => setSelectedMember(null)} />
           
-          {categories.map((category) => (
+          {categories.map((category: string) => (
             <text 
               key={category} 
               x={centers[category]?.x} 
@@ -130,7 +130,7 @@ export default function ForceBubbleChart() {
             </text>
           ))}
 
-          {nodes.map((node, index) => {
+          {nodes.map((node: any, index: number) => {
             const categoryIndex = categories.indexOf(node[groupKey]);
             const bubbleColor = categoryIndex !== -1 ? colorPalette[categoryIndex % colorPalette.length] : '#ccc';
             const isSelected = selectedMember?.['名稱'] === node['名稱'];
@@ -143,7 +143,7 @@ export default function ForceBubbleChart() {
                   stroke={isSelected ? '#333' : '#fff'}
                   strokeWidth={isSelected ? "4" : "2"}
                   className="cursor-pointer hover:brightness-90 transition-all duration-200"
-                  onClick={(e) => {
+                  onClick={(e: any) => {
                     e.stopPropagation();
                     setSelectedMember(node);
                   }}
@@ -166,4 +166,3 @@ export default function ForceBubbleChart() {
     </main>
   );
 }
- 
