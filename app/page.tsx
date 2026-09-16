@@ -176,7 +176,7 @@ export default function ForceBubbleChart() {
                 <text
                   textAnchor="middle"
                   dy=".3em"
-                  fontSize={width < 600 ? "11px" : "14px"}
+                  fontSize={dimensions.width < 600 ? "11px" : "14px"}
                   fontWeight="500"
                   fill="white"
                   className="pointer-events-none"
