@@ -20,7 +20,7 @@ export default function ForceBubbleChart() {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 600 });
-  const [svgHeight, setSvgHeight] = useState(600); // 🌟 新增：動態畫布高度
+  const [svgHeight, setSvgHeight] = useState(600);
 
   useEffect(() => {
     async function fetchMembers() {
@@ -47,7 +47,7 @@ export default function ForceBubbleChart() {
       }
     };
     window.addEventListener('resize', updateSize);
-    setTimeout(updateSize, 100); // 確保畫面載入後再計算
+    setTimeout(updateSize, 100);
     return () => window.removeEventListener('resize', updateSize);
   }, []);
 
@@ -56,10 +56,10 @@ export default function ForceBubbleChart() {
 
     const { width } = dimensions;
     const isMobile = width < 768;
-   
-
+    const isLargeData = rawData.length > 80; 
+    
     const cols = isMobile ? 2 : 4; 
-    const rowHeight = isMobile ? 180 : 220; 
+    const rowHeight = isMobile ? (isLargeData ? 240 : 180) : (isLargeData ? 320 : 220); 
     
     const uniqueCategories = Array.from(new Set(rawData.map((d: any) => d[groupKey]))).filter(Boolean) as string[];
     
@@ -69,18 +69,19 @@ export default function ForceBubbleChart() {
       const row = Math.floor(index / cols);
       newCenters[category] = { 
         x: (col + 0.5) * (width / cols), 
-        y: (row + 0.5) * rowHeight + 40 
+        y: (row + 0.5) * rowHeight + (isLargeData ? 60 : 40)
       };
     });
 
     const totalRows = Math.ceil(uniqueCategories.length / cols);
-    const calculatedHeight = Math.max(isMobile ? 500 : 600, totalRows * rowHeight + 80);
+    const calculatedHeight = Math.max(isMobile ? 500 : 600, totalRows * rowHeight + 100);
     
     setSvgHeight(calculatedHeight);
     setCategories(uniqueCategories);
     setCenters(newCenters);
 
-    const radiusSize = isMobile ? 22 : 35; 
+    // 🌟 智能縮放：人多嗰陣，氣泡自動縮細
+    const radiusSize = isMobile ? (isLargeData ? 16 : 22) : (isLargeData ? 25 : 35); 
     const nodeData = rawData.map((d: any) => ({ ...d, radius: radiusSize }));
 
     const simulation = d3.forceSimulation(nodeData)
@@ -159,22 +160,11 @@ export default function ForceBubbleChart() {
         <svg width="100%" height={svgHeight} className="z-0 relative">
           <rect width="100%" height="100%" fill="transparent" onClick={() => setSelectedMember(null)} />
           
-          {categories.map((category: string) => (
-            <text 
-              key={category} 
-              x={centers[category]?.x} 
-              y={centers[category]?.y - (dimensions.width < 768 ? 55 : 65)} 
-              textAnchor="middle" 
-              className="text-[13px] md:text-lg font-bold fill-gray-500 pointer-events-none"
-            >
-              {category}
-            </text>
-          ))}
-
           {nodes.map((node: any, index: number) => {
             const categoryIndex = categories.indexOf(node[groupKey]);
             const bubbleColor = categoryIndex !== -1 ? colorPalette[categoryIndex % colorPalette.length] : '#ccc';
             const isSelected = selectedMember?.['名稱'] === node['名稱'];
+            const isLargeData = rawData.length > 80;
 
             return (
               <g key={node.id || `node-${index}`} transform={`translate(${node.x || 0}, ${node.y || 0})`}>
@@ -192,12 +182,37 @@ export default function ForceBubbleChart() {
                 <text
                   textAnchor="middle"
                   dy=".3em"
-                  fontSize={dimensions.width < 768 ? "11px" : "14px"}
+                  fontSize={dimensions.width < 768 ? (isLargeData ? "9px" : "11px") : (isLargeData ? "12px" : "14px")}
                   fontWeight="500"
                   fill="white"
                   className="pointer-events-none"
                 >
                   {node['名稱'] || '無名氏'}
+                </text>
+              </g>
+            );
+          })}
+
+          {categories.map((category: string) => {
+            const xPos = centers[category]?.x;
+            const yPos = centers[category]?.y - (dimensions.width < 768 ? 75 : 100); 
+            
+            return (
+              <g key={category} transform={`translate(${xPos}, ${yPos})`} className="pointer-events-none">
+                <text 
+                  textAnchor="middle" 
+                  className="text-[14px] md:text-xl font-bold fill-white stroke-white opacity-80"
+                  strokeWidth="6"
+                  strokeLinejoin="round"
+                >
+                  {category}
+                </text>
+                
+                <text 
+                  textAnchor="middle" 
+                  className="text-[14px] md:text-xl font-bold fill-gray-700"
+                >
+                  {category}
                 </text>
               </g>
             );
