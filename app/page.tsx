@@ -62,7 +62,9 @@ export default function ForceBubbleChart() {
         setNodes([...nodeData]);
       });
 
-    return () => simulation.stop();
+ return () => {
+  simulation.stop();
+};
   }, [rawData, groupKey]);
 
   return (
